@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AntiLLM</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main id="app">
+    <header class="pane header">
+      <div>
+        <h1>AntiLLM</h1>
+        <p class="subtitle">Real-time phishing and AI manipulation guard</p>
+      </div>
+      <span id="risk-pill" class="pill pill-low">Low</span>
+    </header>
+
+    <section class="pane metrics">
+      <h2>Signals</h2>
+      <div class="grid" id="signal-grid"></div>
+    </section>
+
+    <section class="pane intel">
+      <h2>Domain Reputation</h2>
+      <div id="domain-summary"></div>
+      <ul id="recommendations"></ul>
+    </section>
+
+    <section class="pane feedback">
+      <h2>Feedback</h2>
+      <p class="feedback-desc">Help improve detection accuracy</p>
+      <div class="feedback-buttons">
+        <button id="btn-false-positive" class="btn-feedback">🚫 False Positive</button>
+        <button id="btn-confirm-threat" class="btn-feedback">✅ Confirm Threat</button>
+        <button id="btn-mark-safe" class="btn-feedback">✓ Mark as Safe</button>
+      </div>
+      <p id="feedback-status" class="status"></p>
+    </section>
+
+    <section class="pane config">
+      <h2>Threat Intel API Keys</h2>
+      <form id="api-form">
+        <label>
+          VirusTotal API key
+          <input type="text" name="vtApiKey" placeholder="Optional" autocomplete="off">
+        </label>
+        <label>
+          Google Safe Browsing API key
+          <input type="text" name="gsbApiKey" placeholder="Optional" autocomplete="off">
+        </label>
+        <button type="submit">Save keys</button>
+        <p id="api-status" class="status"></p>
+      </form>
+    </section>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

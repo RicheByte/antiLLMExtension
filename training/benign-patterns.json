@@ -1,0 +1,187 @@
+{
+  "version": "1.0.0",
+  "description": "Known benign patterns to reduce false positives",
+  "updated": "2025-10-29T00:00:00Z",
+  "benign_patterns": {
+    "corporate_newsletters": {
+      "domains": [
+        "mail.google.com",
+        "outlook.office.com",
+        "mailchimp.com",
+        "constantcontact.com",
+        "sendgrid.net"
+      ],
+      "common_phrases": [
+        "unsubscribe from this list",
+        "view this email in your browser",
+        "update your preferences",
+        "you're receiving this because",
+        "manage your subscription"
+      ],
+      "structural_markers": [
+        "©.*all rights reserved",
+        "privacy policy.*terms of service",
+        "sent to.*because you",
+        "add us to your address book"
+      ],
+      "exemptions": {
+        "urgency_threshold": 0.8,
+        "ai_threshold": 0.9,
+        "requires_multiple_signals": true
+      }
+    },
+    "support_documentation": {
+      "domains": [
+        "support.google.com",
+        "support.microsoft.com",
+        "support.apple.com",
+        "help.github.com",
+        "docs.github.com",
+        "stackoverflow.com"
+      ],
+      "common_phrases": [
+        "was this article helpful",
+        "feedback",
+        "related articles",
+        "in this article",
+        "table of contents",
+        "prerequisites",
+        "step by step"
+      ],
+      "structural_markers": [
+        "\\d+\\. .*\\n\\d+\\. ",
+        "## [A-Z]",
+        "```",
+        "\\[!NOTE\\]|\\[!WARNING\\]"
+      ],
+      "exemptions": {
+        "structure_penalty_multiplier": 0.3,
+        "enumeration_penalty_multiplier": 0.2
+      }
+    },
+    "legitimate_forms": {
+      "domains": [
+        "forms.google.com",
+        "forms.office.com",
+        "typeform.com",
+        "surveymonkey.com",
+        "jotform.com"
+      ],
+      "indicators": [
+        "powered by google forms",
+        "created with typeform",
+        "submit",
+        "required",
+        "*required"
+      ],
+      "exemptions": {
+        "credential_guard_threshold_increase": 20,
+        "form_behavior_relaxed": true
+      }
+    },
+    "news_sites": {
+      "domains": [
+        "nytimes.com",
+        "washingtonpost.com",
+        "bbc.com",
+        "cnn.com",
+        "reuters.com",
+        "theguardian.com",
+        "apnews.com"
+      ],
+      "indicators": [
+        "by [A-Z][a-z]+ [A-Z][a-z]+",
+        "published.*ago",
+        "updated.*ago",
+        "min read",
+        "subscribe to.*newsletter",
+        "sign up for.*updates"
+      ],
+      "exemptions": {
+        "urgency_threshold": 0.9,
+        "persuasion_threshold": 0.9,
+        "requires_domain_verification": true
+      }
+    },
+    "e_commerce": {
+      "domains": [
+        "amazon.com",
+        "ebay.com",
+        "etsy.com",
+        "shopify.com",
+        "walmart.com",
+        "target.com"
+      ],
+      "common_phrases": [
+        "add to cart",
+        "add to wishlist",
+        "free shipping",
+        "in stock",
+        "out of stock",
+        "customer reviews",
+        "product description"
+      ],
+      "exemptions": {
+        "urgency_allowed_if_legitimate": true,
+        "scarcity_allowed": true,
+        "requires_https": true
+      }
+    },
+    "social_media": {
+      "domains": [
+        "facebook.com",
+        "twitter.com",
+        "linkedin.com",
+        "instagram.com",
+        "reddit.com"
+      ],
+      "exemptions": {
+        "social_proof_allowed": true,
+        "engagement_patterns_exempt": true
+      }
+    }
+  },
+  "global_exemptions": {
+    "https_bonus": 0.05,
+    "known_brand_bonus": 0.10,
+    "valid_ssl_bonus": 0.05,
+    "no_typosquat_bonus": 0.15
+  },
+  "detection_rules": {
+    "require_multiple_independent_signals": {
+      "enabled": true,
+      "minimum_signals": 2,
+      "signal_types": [
+        "high_ai_probability",
+        "high_urgency",
+        "credential_risk",
+        "domain_risk",
+        "jailbreak_detected"
+      ],
+      "description": "Require at least 2 independent risk signals before triggering warnings"
+    },
+    "confidence_gating": {
+      "enabled": true,
+      "minimum_confidence": 0.6,
+      "description": "Only trigger warnings if detection confidence is above threshold"
+    },
+    "context_aware_thresholds": {
+      "enabled": true,
+      "adjustments": {
+        "benign_domain": {
+          "composite_risk_increase": 20,
+          "ai_threshold_increase": 0.2,
+          "urgency_threshold_increase": 0.3
+        },
+        "news_content": {
+          "urgency_allowed": true,
+          "persuasion_threshold": 0.9
+        },
+        "documentation": {
+          "structure_penalty": 0.2,
+          "enumeration_exempt": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "AntiLLM",
+  "description": "Real-time phishing and manipulation detection with local-first analysis.",
+  "version": "0.2.1",
+  "action": {
+    "default_title": "AntiLLM",
+    "default_popup": "popup/popup.html"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://www.virustotal.com/*",
+    "https://safebrowsing.googleapis.com/*",
+    "https://raw.githubusercontent.com/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background/serviceWorker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "content/detectors/utils.js",
+        "content/detectors/signatureManager.js",
+        "content/detectors/aiTextAnalyzer.js",
+        "content/detectors/llmFingerprinter.js",
+        "content/detectors/jailbreakDetector.js",
+        "content/detectors/domainReputation.js",
+        "content/detectors/credentialGuard.js",
+        "content/detectors/formBehaviorMonitor.js",
+        "content/notifier.js",
+        "content/contentScript.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "popup/popup.html"
+}

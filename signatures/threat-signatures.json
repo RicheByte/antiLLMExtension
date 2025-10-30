@@ -1,0 +1,183 @@
+{
+  "version": "1.0.0",
+  "updated": "2025-10-29T00:00:00Z",
+  "description": "Remote threat signature database for AntiLLM",
+  "signatures": {
+    "jailbreak": [
+      {
+        "pattern": "ignore.*previous.*instructions?",
+        "severity": "critical",
+        "confidence": 0.95,
+        "category": "instruction_override"
+      },
+      {
+        "pattern": "disregard.*(?:above|prior).*(?:rules?|instructions?)",
+        "severity": "critical",
+        "confidence": 0.90,
+        "category": "instruction_override"
+      },
+      {
+        "pattern": "you are now.*(?:dan|developer mode|jailbreak)",
+        "severity": "critical",
+        "confidence": 0.95,
+        "category": "role_play"
+      },
+      {
+        "pattern": "\\[SYSTEM\\]|<\\|system\\|>|<\\|endoftext\\|>",
+        "severity": "critical",
+        "confidence": 0.85,
+        "category": "delimiter_injection"
+      },
+      {
+        "pattern": "output.*prompt|print.*instructions|reveal.*system",
+        "severity": "high",
+        "confidence": 0.80,
+        "category": "prompt_extraction"
+      }
+    ],
+    "llm": {
+      "gpt": {
+        "markers": [
+          "as an ai language model",
+          "i don't have personal",
+          "i cannot provide",
+          "it's important to note",
+          "i apologize, but"
+        ],
+        "fingerprints": [
+          "\\b(?:in conclusion|to summarize|furthermore)\\b"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "claude": {
+        "markers": [
+          "i aim to be helpful",
+          "i should clarify",
+          "i'll be direct",
+          "let me be clear"
+        ],
+        "fingerprints": [
+          "\\b(?:to be precise|more specifically)\\b"
+        ],
+        "confidence_threshold": 0.7
+      },
+      "generic": {
+        "markers": [
+          "kindly",
+          "please note",
+          "rest assured",
+          "thank you for your prompt"
+        ],
+        "confidence_threshold": 0.6
+      }
+    },
+    "phishing": {
+      "urgency": [
+        "urgent.*action.*required",
+        "immediate.*verification",
+        "account.*suspended",
+        "expires?.*(?:soon|today|tonight)",
+        "final.*(?:warning|notice|reminder)",
+        "time.*sensitive",
+        "act.*(?:now|immediately)"
+      ],
+      "impersonation": [
+        "dear.*(?:customer|user|member|client)",
+        "valued.*(?:customer|user|member)",
+        "security.*(?:team|department|alert)",
+        "customer.*(?:service|support).*team",
+        "fraud.*prevention.*(?:team|department)"
+      ],
+      "manipulation": [
+        "verify.*account",
+        "confirm.*identity",
+        "update.*payment",
+        "unusual.*activity",
+        "suspicious.*login",
+        "unauthorized.*access"
+      ]
+    },
+    "domains": {
+      "typosquat_targets": [
+        "google",
+        "microsoft",
+        "apple",
+        "amazon",
+        "facebook",
+        "paypal",
+        "bankofamerica",
+        "wellsfargo",
+        "chase",
+        "citibank",
+        "netflix",
+        "dropbox",
+        "github",
+        "linkedin"
+      ],
+      "suspicious_tlds": [
+        ".tk",
+        ".ml",
+        ".ga",
+        ".cf",
+        ".gq",
+        ".xyz",
+        ".top",
+        ".work",
+        ".click",
+        ".download"
+      ],
+      "free_hosting_indicators": [
+        "000webhost",
+        "freehostia",
+        "freehosting",
+        "byethost",
+        "x10hosting"
+      ]
+    }
+  },
+  "thresholds": {
+    "aiProbability": {
+      "high": 0.75,
+      "medium": 0.50,
+      "low": 0.30
+    },
+    "compositeRisk": {
+      "high": 80,
+      "medium": 50,
+      "low": 30
+    },
+    "jailbreakHits": {
+      "critical": 2,
+      "warning": 5
+    },
+    "domainRisk": {
+      "critical": 85,
+      "high": 70,
+      "medium": 50
+    }
+  },
+  "weights": {
+    "aiProbability": 20,
+    "urgencyScore": 12,
+    "persuasionScore": 10,
+    "llmScore": 15,
+    "domainRisk": 25,
+    "jailbreakBase": 12,
+    "manipulation": 8,
+    "credibility": -12
+  },
+  "whitelist": {
+    "domains": [
+      "google.com",
+      "microsoft.com",
+      "apple.com",
+      "amazon.com",
+      "github.com"
+    ],
+    "patterns": [
+      ".*\\.google\\.com$",
+      ".*\\.microsoft\\.com$",
+      ".*\\.apple\\.com$"
+    ]
+  }
+}
