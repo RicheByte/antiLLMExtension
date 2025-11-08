@@ -1,10 +1,10 @@
 # AntiLLM - Advanced AI Phishing Detection Extension
-
-## 🛡️ Overview
+![Demo Video](/assets/video.gif)
+##  Overview
 
 AntiLLM is a sophisticated browser extension that provides real-time detection of AI-generated phishing attempts, prompt injection attacks, and social engineering tactics. Using advanced machine learning patterns, behavioral analysis, and threat intelligence, it protects users from the latest generation of automated phishing campaigns.
 
-## 🚀 Key Features
+##  Key Features
 
 ### 1. **Multi-Dimensional AI Text Analysis**
 - **Linguistic Pattern Detection**: Identifies GPT-3/4, Claude, and generic LLM signatures
@@ -52,7 +52,7 @@ AntiLLM is a sophisticated browser extension that provides real-time detection o
 - Suspicious field ratio analysis
 - Event handler monitoring
 
-## 📊 Detection Metrics
+##  Detection Metrics
 
 ### AI Analysis Breakdown
 - **AI Probability**: 0-100% likelihood of AI-generated content
@@ -67,7 +67,7 @@ AntiLLM is a sophisticated browser extension that provides real-time detection o
 - **Contextual Multipliers**: Financial/credential context awareness
 - **Dynamic Thresholds**: Adaptive risk levels based on combinations
 
-## 🎯 Use Cases
+##  Use Cases
 
 ### Protection Against:
 1. **AI-Generated Phishing Emails**: Detects ChatGPT/Claude-written scams
@@ -78,7 +78,7 @@ AntiLLM is a sophisticated browser extension that provides real-time detection o
 6. **Homoglyph Attacks**: Catches Unicode character substitution
 7. **Dynamic Phishing**: Detects forms injected via JavaScript
 
-## 🔧 Technical Architecture
+##  Technical Architecture
 
 ### Detection Pipeline
 ```
@@ -100,7 +100,7 @@ Composite Risk Calculation → User Notification
 - **Cached Results**: Domain reputation caching (30min TTL)
 - **Incremental Scanning**: Mutation observer with significance filtering
 
-## 📈 Scoring Algorithm
+##  Scoring Algorithm
 
 ### Composite Risk Formula
 ```javascript
@@ -127,7 +127,7 @@ totalRisk =
 - High AI + High urgency combination
 - Critical LLM risk factors
 
-## 🔍 Advanced Features
+##  Advanced Features
 
 ### AI Detection Capabilities
 - **Politeness Markers**: Excessive formality detection
@@ -155,7 +155,7 @@ totalRisk =
 - Reverse psychology techniques
 - Context manipulation commands
 
-## 🎨 User Interface
+##  User Interface
 
 ### Popup Display
 - **Risk Pill**: Color-coded threat level (Green/Yellow/Red)
@@ -170,7 +170,7 @@ totalRisk =
 - **Animated Warnings**: Pulsing high-risk indicators
 - **Gradient Design**: Modern, professional UI
 
-## 📡 External Integrations
+##  External Integrations
 
 ### Optional APIs (Enhanced Detection)
 1. **VirusTotal**: Domain malware/phishing database
@@ -179,7 +179,7 @@ totalRisk =
 ### Local-First Processing
 All core detection runs locally without external dependencies. APIs are optional enhancements for additional threat intelligence.
 
-## 🛠️ Installation
+##  Installation
 
 1. Clone or download the repository
 2. Open browser extension management:
@@ -190,7 +190,7 @@ All core detection runs locally without external dependencies. APIs are optional
 4. Click "Load unpacked" and select the extension folder
 5. (Optional) Add VirusTotal/Safe Browsing API keys in popup settings
 
-## 📊 Performance Metrics
+##  Performance Metrics
 
 ### Resource Impact
 - **Memory**: ~15-25MB per tab
@@ -203,7 +203,7 @@ All core detection runs locally without external dependencies. APIs are optional
 - **Detection Accuracy**: >85% on known phishing patterns
 - **AI Detection Confidence**: 70%+ on GPT-generated content
 
-## 🔒 Privacy & Security
+##  Privacy & Security
 
 ### Data Handling
 - **Local Processing**: All analysis happens in-browser
@@ -212,7 +212,7 @@ All core detection runs locally without external dependencies. APIs are optional
 - **Optional APIs**: User-controlled external queries
 - **Secure Storage**: API keys stored in browser local storage
 
-## 🚦 Usage Examples
+##  Usage Examples
 
 ### Detection Scenarios
 
@@ -248,7 +248,7 @@ Detection:
 Result: Critical warning notification
 ```
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions welcome! Focus areas:
 - Additional AI model signatures
@@ -257,30 +257,8 @@ Contributions welcome! Focus areas:
 - UI/UX improvements
 - Additional threat intelligence sources
 
-## 📝 Version History
 
-### v0.2.0 (Enhanced MVP)
-- Advanced multi-dimensional AI analysis
-- Sophisticated LLM fingerprinting with model detection
-- Enhanced jailbreak detection (30+ patterns)
-- Advanced domain reputation (typosquatting, homoglyphs)
-- Intelligent credential guard with behavioral analysis
-- Rich UI with detailed breakdowns
-- Performance optimizations
-- Comprehensive logging
-
-### v0.1.0 (Initial MVP)
-- Basic AI text detection
-- Simple domain reputation
-- Initial jailbreak monitoring
-- Credential field detection
-- Basic form monitoring
-
-## 📜 License
-
-MIT License - Free for personal and commercial use
-
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 Built with modern browser APIs:
 - Manifest V3
