@@ -12,6 +12,7 @@
   const jailbreakDetector = new JailbreakDetector(notifier);
   const credentialGuard = new CredentialGuard(domainReputation, notifier);
   const formMonitor = new FormBehaviorMonitor(notifier, domainReputation);
+  const blockerUI = new BlockerUI(notifier);
   
   FormBehaviorMonitor.registerInstance(formMonitor);
 
@@ -19,10 +20,22 @@
   credentialGuard.init();
   formMonitor.interceptFormSubmissions();
 
+  // Request blocked items from storage to restore
+  chrome.runtime.sendMessage({ type: 'GET_BLOCKED_ITEMS' }, (response) => {
+    if (response && response.blockedItems) {
+      blockerUI.restoreBlocks(response.blockedItems);
+    }
+  });
+
   let lastPayloadSignature = null;
   let analysisCount = 0;
   let lastAnalysisTime = 0;
   const MIN_ANALYSIS_INTERVAL = 3000; // Increased from 1000ms to 3000ms to prevent spam
+
+  // Per-element scanning state
+  let lastElementScanTime = 0;
+  const MIN_ELEMENT_SCAN_INTERVAL = 5000; // 5 seconds between element scans
+  const analyzedElements = new WeakSet(); // Track already analyzed elements
 
   // Debounced page scan with adaptive timing
   const scheduleScan = VigilUtils.debounce(() => {
@@ -37,6 +50,18 @@
       // Don't show error notifications to users
     });
   }, 1500);  // Increased from 800ms to 1500ms
+
+  // Debounced element scan
+  const scheduleElementScan = VigilUtils.debounce(() => {
+    const now = Date.now();
+    if (now - lastElementScanTime < MIN_ELEMENT_SCAN_INTERVAL) {
+      return;
+    }
+    
+    scanElements().catch((error) => {
+      console.error("[AntiLLM] Element scan error:", error);
+    });
+  }, 2000);
 
   async function analyzePage() {
     try {
@@ -191,14 +216,14 @@
         });
       }
 
-      // User notifications based on risk - more conservative
+      // User notifications based on risk - very conservative
       // Challenge 1: Only show if multiple independent signals detected
-      if (riskLevel === "high" && compositeScore.total >= 80 && independentSignals.count >= 2) {
+      if (riskLevel === "high" && compositeScore.total >= 85 && independentSignals.count >= 3) {
         notifier.warn(
           `🚨 HIGH RISK: Multiple phishing indicators detected (${independentSignals.count} signals, score: ${Math.round(compositeScore.total)}/100). Avoid entering credentials.`
         );
-      } else if (riskLevel === "medium" && compositeScore.total >= 60 && independentSignals.count >= 2) {
-        // Only show medium warnings if multiple signals AND score is significant
+      } else if (riskLevel === "medium" && compositeScore.total >= 70 && independentSignals.count >= 3) {
+        // Only show medium warnings if 3+ signals AND high score
         notifier.info(
           `⚠️ Potential social engineering detected (${independentSignals.count} indicators). Review carefully. (Risk: ${Math.round(compositeScore.total)}/100)`
         );
@@ -404,11 +429,149 @@
     return "low";
   }
 
+  /**
+   * Scan individual elements for suspicious content and add overlays
+   */
+  async function scanElements() {
+    try {
+      lastElementScanTime = Date.now();
+
+      // Get settings for thresholds (with defaults)
+      const settings = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+          resolve(response?.settings || {});
+        });
+      });
+
+      const thresholds = {
+        aiProbability: settings.aiProbabilityThreshold || 0.75,
+        aiConfidence: settings.aiConfidenceThreshold || 0.65,
+        llmScore: settings.llmScoreThreshold || 0.65,
+        urgencyScore: settings.urgencyScoreThreshold || 0.7,
+        minTextLength: settings.minTextLength || 150,
+        maxElementsPerScan: settings.maxElementsPerScan || 20
+      };
+
+      // Check if blockers are enabled
+      if (settings.blockersEnabled === false) {
+        return; // Skip scanning if disabled
+      }
+
+      // Select candidate elements
+      const candidates = document.querySelectorAll('p, div[class*="text"], div[class*="content"], li, article, section, a[href]');
+      const eligibleElements = [];
+
+      for (const element of candidates) {
+        // Skip if already analyzed
+        if (analyzedElements.has(element)) {
+          continue;
+        }
+
+        // Skip if already has overlay
+        if (element.hasAttribute('data-antillm-analyzed')) {
+          continue;
+        }
+
+        // Check visibility
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+          continue;
+        }
+
+        // Check text length
+        const text = element.textContent?.trim() || '';
+        if (text.length < thresholds.minTextLength) {
+          continue;
+        }
+
+        eligibleElements.push({ element, text });
+
+        // Limit analysis per scan
+        if (eligibleElements.length >= thresholds.maxElementsPerScan) {
+          break;
+        }
+      }
+
+      if (eligibleElements.length === 0) {
+        return;
+      }
+
+      console.log(`[AntiLLM] Scanning ${eligibleElements.length} elements...`);
+
+      // Analyze elements in batches
+      for (const { element, text } of eligibleElements) {
+        try {
+          // Mark as analyzed
+          analyzedElements.add(element);
+          element.setAttribute('data-antillm-analyzed', 'true');
+
+          // Run analysis
+          const [aiResult, llmResult] = await Promise.all([
+            Promise.resolve(aiAnalyzer.analyzeText(text)),
+            Promise.resolve(llmFingerprinter.detectAIPhishing(text))
+          ]);
+
+        // Check if element meets flagging criteria - require multiple signals
+        const signals = [];
+        if (aiResult.aiProbability >= thresholds.aiProbability && aiResult.confidence >= thresholds.aiConfidence) {
+          signals.push('ai');
+        }
+        if (llmResult.score >= thresholds.llmScore) {
+          signals.push('llm');
+        }
+        if (aiResult.urgencyScore >= thresholds.urgencyScore) {
+          signals.push('urgency');
+        }
+        if (aiResult.manipulationTechniques?.length > 0 && aiResult.manipulationTechniques.some(t => t.severity === 'high')) {
+          signals.push('manipulation');
+        }
+        
+        // Require at least 2 independent signals to flag
+        const shouldFlag = signals.length >= 2 || 
+                          (signals.length === 1 && aiResult.aiProbability >= 0.85 && aiResult.urgencyScore >= 0.8);
+
+        if (shouldFlag) {
+          const analysisData = {
+            aiScore: aiResult.aiProbability,
+            llmScore: llmResult.score,
+            urgencyScore: aiResult.urgencyScore,
+            manipulationTechniques: aiResult.manipulationTechniques?.length || 0,
+            confidence: aiResult.confidence,
+            persuasionScore: aiResult.persuasionScore,
+            credibilityScore: aiResult.credibilityScore
+          };
+
+          // Create overlay for this element
+          blockerUI.createOverlay(element, analysisData);
+
+          console.log(`[AntiLLM] Flagged element:`, {
+            text: text.slice(0, 100),
+            aiScore: aiResult.aiProbability.toFixed(2),
+            llmScore: llmResult.score.toFixed(2),
+            urgency: aiResult.urgencyScore.toFixed(2),
+            signals: signals.join(', ')
+          });
+        }
+        } catch (error) {
+          console.error('[AntiLLM] Error analyzing element:', error);
+        }
+      }
+
+    } catch (error) {
+      console.error("[AntiLLM] Element scanning error:", error);
+    }
+  }
+
   // Initial page analysis
   console.log("[AntiLLM] Initialized and monitoring...");
   await analyzePage().catch((error) => {
     console.error("[AntiLLM] Initial analysis failed:", error);
   });
+
+  // Initial element scan (delayed to let page load)
+  setTimeout(() => {
+    scheduleElementScan();
+  }, 3000);
 
   // Set up observers for dynamic content - more selective
   const mutationObserver = new MutationObserver((mutations) => {
@@ -440,6 +603,7 @@
     // Only schedule scan if we added substantial content (>200 chars)
     if (significantChange && addedTextLength > 200) {
       scheduleScan();
+      scheduleElementScan(); // Also scan new elements
     }
   });
 
@@ -450,14 +614,21 @@
   });
 
   // Listen for navigation events (SPAs)
-  window.addEventListener("focus", () => scheduleScan());
-  window.addEventListener("hashchange", () => scheduleScan());
+  window.addEventListener("focus", () => {
+    scheduleScan();
+    scheduleElementScan();
+  });
+  window.addEventListener("hashchange", () => {
+    scheduleScan();
+    scheduleElementScan();
+  });
   
   // Listen for history changes (for SPAs using pushState)
   const originalPushState = history.pushState;
   history.pushState = function(...args) {
-    history.pushState.apply(this, args);
+    originalPushState.apply(this, args);
     scheduleScan();
+    scheduleElementScan();
   };
 
   console.log("[AntiLLM] Active and monitoring page changes");

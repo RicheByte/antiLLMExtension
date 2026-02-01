@@ -7,6 +7,11 @@ async function init() {
   await hydrateApiForm();
   hookApiForm();
   hookFeedbackButtons(tab, assessment);
+  await loadBlockedItems(tab);
+  await loadReadLLMQueue();
+  await loadSettings();
+  hookBlockerControls();
+  hookSettingsControls();
 }
 
 function renderAssessment(assessment) {
@@ -408,5 +413,324 @@ async function submitFeedback(feedback, statusElement) {
       statusElement.textContent = "";
     }, 5000);
   }
+}
+
+// Blocked Items Management
+async function loadBlockedItems(tab) {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_BLOCKED_ITEMS' });
+    const blockedItems = response?.blockedItems || [];
+    
+    // Filter for current domain if tab available
+    const currentDomain = tab ? new URL(tab.url).hostname : null;
+    const relevantItems = currentDomain 
+      ? blockedItems.filter(item => item.domain === currentDomain)
+      : blockedItems;
+    
+    const count = document.getElementById('blocked-count');
+    const list = document.getElementById('blocked-list');
+    
+    count.textContent = relevantItems.length;
+    list.innerHTML = '';
+    
+    if (relevantItems.length === 0) {
+      return; // CSS will show "No items"
+    }
+    
+    relevantItems.forEach(item => {
+      const card = createItemCard(item, 'blocked');
+      list.appendChild(card);
+    });
+  } catch (error) {
+    console.error('[Popup] Error loading blocked items:', error);
+  }
+}
+
+async function loadReadLLMQueue() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_READ_LLM_QUEUE' });
+    const queue = response?.queue || [];
+    
+    const count = document.getElementById('queue-count');
+    const list = document.getElementById('read-llm-list');
+    
+    count.textContent = queue.length;
+    list.innerHTML = '';
+    
+    if (queue.length === 0) {
+      return; // CSS will show "No items"
+    }
+    
+    queue.forEach(item => {
+      const card = createItemCard(item, 'queue');
+      list.appendChild(card);
+    });
+  } catch (error) {
+    console.error('[Popup] Error loading Read LLM queue:', error);
+  }
+}
+
+function createItemCard(item, type) {
+  const card = document.createElement('div');
+  card.className = 'item-card';
+  
+  const header = document.createElement('div');
+  header.className = 'item-header';
+  
+  const domain = document.createElement('div');
+  domain.className = 'item-domain';
+  domain.textContent = item.domain || 'Unknown';
+  
+  const time = document.createElement('div');
+  time.className = 'item-time';
+  time.textContent = formatTimeAgo(item.timestamp || item.addedAt || item.blockedAt);
+  
+  header.appendChild(domain);
+  header.appendChild(time);
+  
+  const excerpt = document.createElement('div');
+  excerpt.className = 'item-excerpt';
+  excerpt.textContent = item.excerpt || 'No excerpt';
+  
+  const scores = document.createElement('div');
+  scores.className = 'item-scores';
+  
+  if (item.aiScore !== undefined) {
+    const aiTag = document.createElement('span');
+    aiTag.className = 'score-tag';
+    aiTag.textContent = `AI: ${formatPercent(item.aiScore * 100)}`;
+    scores.appendChild(aiTag);
+  }
+  
+  if (item.llmScore !== undefined) {
+    const llmTag = document.createElement('span');
+    llmTag.className = 'score-tag';
+    llmTag.textContent = `LLM: ${formatPercent(item.llmScore * 100)}`;
+    scores.appendChild(llmTag);
+  }
+  
+  if (item.reason) {
+    const reasonTag = document.createElement('span');
+    reasonTag.className = 'score-tag';
+    reasonTag.textContent = item.reason;
+    scores.appendChild(reasonTag);
+  }
+  
+  const actions = document.createElement('div');
+  actions.className = 'item-actions';
+  
+  if (type === 'blocked') {
+    const unblockBtn = document.createElement('button');
+    unblockBtn.className = 'btn-item';
+    unblockBtn.textContent = 'Unblock';
+    unblockBtn.addEventListener('click', async () => {
+      await unblockItem(item.id);
+      card.remove();
+      updateBlockedCount(-1);
+    });
+    actions.appendChild(unblockBtn);
+    
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'btn-item';
+    viewBtn.textContent = 'View URL';
+    viewBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: item.url });
+    });
+    actions.appendChild(viewBtn);
+  } else if (type === 'queue') {
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn-item danger';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', async () => {
+      await removeFromQueue(item.id);
+      card.remove();
+      updateQueueCount(-1);
+    });
+    actions.appendChild(removeBtn);
+    
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'btn-item';
+    viewBtn.textContent = 'View URL';
+    viewBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: item.url });
+    });
+    actions.appendChild(viewBtn);
+  }
+  
+  card.appendChild(header);
+  card.appendChild(excerpt);
+  card.appendChild(scores);
+  card.appendChild(actions);
+  
+  return card;
+}
+
+async function unblockItem(itemId) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'UNBLOCK_ITEM',
+      itemId
+    });
+  } catch (error) {
+    console.error('[Popup] Error unblocking item:', error);
+  }
+}
+
+async function removeFromQueue(itemId) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'REMOVE_FROM_READ_LLM',
+      itemId
+    });
+  } catch (error) {
+    console.error('[Popup] Error removing from queue:', error);
+  }
+}
+
+function updateBlockedCount(delta) {
+  const count = document.getElementById('blocked-count');
+  const current = parseInt(count.textContent) || 0;
+  count.textContent = Math.max(0, current + delta);
+}
+
+function updateQueueCount(delta) {
+  const count = document.getElementById('queue-count');
+  const current = parseInt(count.textContent) || 0;
+  count.textContent = Math.max(0, current + delta);
+}
+
+function formatTimeAgo(timestamp) {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+function hookBlockerControls() {
+  const btnClearBlocked = document.getElementById('btn-clear-blocked');
+  const btnExportQueue = document.getElementById('btn-export-queue');
+  const btnClearQueue = document.getElementById('btn-clear-queue');
+  
+  btnClearBlocked?.addEventListener('click', async () => {
+    if (confirm('Clear all blocked items for this domain?')) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const currentDomain = tab ? new URL(tab.url).hostname : null;
+      
+      const response = await chrome.runtime.sendMessage({ type: 'GET_BLOCKED_ITEMS' });
+      const blockedItems = response?.blockedItems || [];
+      
+      for (const item of blockedItems) {
+        if (!currentDomain || item.domain === currentDomain) {
+          await unblockItem(item.id);
+        }
+      }
+      
+      await loadBlockedItems(tab);
+    }
+  });
+  
+  btnExportQueue?.addEventListener('click', async () => {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_READ_LLM_QUEUE' });
+    const queue = response?.queue || [];
+    
+    const json = JSON.stringify(queue, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `read-llm-queue-${Date.now()}.json`;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+  });
+  
+  btnClearQueue?.addEventListener('click', async () => {
+    if (confirm('Clear entire Read LLM queue?')) {
+      const response = await chrome.runtime.sendMessage({ type: 'GET_READ_LLM_QUEUE' });
+      const queue = response?.queue || [];
+      
+      for (const item of queue) {
+        await removeFromQueue(item.id);
+      }
+      
+      await loadReadLLMQueue();
+    }
+  });
+}
+
+// Settings Management
+async function loadSettings() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    const settings = response?.settings || {};
+    
+    const toggleBlockers = document.getElementById('toggle-blockers');
+    const toggleAutoBlock = document.getElementById('toggle-auto-block');
+    const aiThreshold = document.getElementById('ai-threshold');
+    const llmThreshold = document.getElementById('llm-threshold');
+    const aiValue = document.getElementById('ai-threshold-value');
+    const llmValue = document.getElementById('llm-threshold-value');
+    
+    if (toggleBlockers) toggleBlockers.checked = settings.blockersEnabled !== false;
+    if (toggleAutoBlock) toggleAutoBlock.checked = settings.autoBlock === true;
+    if (aiThreshold) {
+      aiThreshold.value = settings.aiProbabilityThreshold || 0.75;
+      if (aiValue) aiValue.textContent = (settings.aiProbabilityThreshold || 0.75).toFixed(2);
+    }
+    if (llmThreshold) {
+      llmThreshold.value = settings.llmScoreThreshold || 0.65;
+      if (llmValue) llmValue.textContent = (settings.llmScoreThreshold || 0.65).toFixed(2);
+    }
+  } catch (error) {
+    console.error('[Popup] Error loading settings:', error);
+  }
+}
+
+function hookSettingsControls() {
+  const toggleBlockers = document.getElementById('toggle-blockers');
+  const toggleAutoBlock = document.getElementById('toggle-auto-block');
+  const aiThreshold = document.getElementById('ai-threshold');
+  const llmThreshold = document.getElementById('llm-threshold');
+  const aiValue = document.getElementById('ai-threshold-value');
+  const llmValue = document.getElementById('llm-threshold-value');
+  
+  toggleBlockers?.addEventListener('change', async (e) => {
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { blockersEnabled: e.target.checked }
+    });
+  });
+  
+  toggleAutoBlock?.addEventListener('change', async (e) => {
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { autoBlock: e.target.checked }
+    });
+  });
+  
+  aiThreshold?.addEventListener('input', (e) => {
+    if (aiValue) aiValue.textContent = parseFloat(e.target.value).toFixed(2);
+  });
+  
+  aiThreshold?.addEventListener('change', async (e) => {
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { aiProbabilityThreshold: parseFloat(e.target.value) }
+    });
+  });
+  
+  llmThreshold?.addEventListener('input', (e) => {
+    if (llmValue) llmValue.textContent = parseFloat(e.target.value).toFixed(2);
+  });
+  
+  llmThreshold?.addEventListener('change', async (e) => {
+    await chrome.runtime.sendMessage({
+      type: 'UPDATE_SETTINGS',
+      settings: { llmScoreThreshold: parseFloat(e.target.value) }
+    });
+  });
 }
 

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "AntiLLM",
   "description": "Real-time phishing and manipulation detection with local-first analysis.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "action": {
     "default_title": "AntiLLM",
     "default_popup": "popup/popup.html"
@@ -39,6 +39,7 @@
         "content/detectors/credentialGuard.js",
         "content/detectors/formBehaviorMonitor.js",
         "content/notifier.js",
+        "content/blockerUI.js",
         "content/contentScript.js"
       ],
       "run_at": "document_idle"

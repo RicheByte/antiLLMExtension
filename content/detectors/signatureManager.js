@@ -8,8 +8,10 @@
       this.signatures = null;
       this.lastUpdate = 0;
       this.updateInterval = 24 * 60 * 60 * 1000; // 24 hours
-      this.signatureUrl = "https://raw.githubusercontent.com/yourusername/antillm/main/signatures/threat-signatures.json";
+      // Update URL to your actual repository or disable remote updates
+      this.signatureUrl = "https://raw.githubusercontent.com/RicheByte/antiLLMExtension/main/signatures/threat-signatures.json";
       this.fallbackSignatures = this.getDefaultSignatures();
+      this.remoteUpdatesEnabled = false; // Disable until repo URL is configured
     }
 
     async initialize() {
@@ -22,8 +24,10 @@
         this.signatures = this.fallbackSignatures;
       }
 
-      // Check for updates in background
-      this.checkForUpdates();
+      // Check for updates in background only if enabled
+      if (this.remoteUpdatesEnabled) {
+        this.checkForUpdates();
+      }
     }
 
     async loadCachedSignatures() {
@@ -79,7 +83,10 @@
           console.error("[AntiLLM] Invalid signature format received");
         }
       } catch (error) {
-        console.warn("[AntiLLM] Signature update error:", error.message);
+        // Only log if remote updates are enabled
+        if (this.remoteUpdatesEnabled) {
+          console.warn("[AntiLLM] Signature update error:", error.message);
+        }
         // Gracefully fallback to existing/default signatures
       }
     }

@@ -39,6 +39,47 @@
       <p id="feedback-status" class="status"></p>
     </section>
 
+    <section class="pane blockers">
+      <h2>Blocked Items <span id="blocked-count" class="count-badge">0</span></h2>
+      <p class="section-desc">Elements blocked on this domain</p>
+      <div id="blocked-list" class="item-list"></div>
+      <button id="btn-clear-blocked" class="btn-secondary">Clear All Blocks</button>
+    </section>
+
+    <section class="pane read-llm">
+      <h2>Read LLM Queue <span id="queue-count" class="count-badge">0</span></h2>
+      <p class="section-desc">Items marked for LLM analysis</p>
+      <div id="read-llm-list" class="item-list"></div>
+      <div class="queue-actions">
+        <button id="btn-export-queue" class="btn-secondary">Export Queue</button>
+        <button id="btn-clear-queue" class="btn-secondary">Clear Queue</button>
+      </div>
+    </section>
+
+    <section class="pane settings">
+      <h2>Settings</h2>
+      <div class="settings-group">
+        <label class="toggle-label">
+          <input type="checkbox" id="toggle-blockers">
+          <span>Enable Blockers</span>
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="toggle-auto-block">
+          <span>Auto-block High Risk</span>
+        </label>
+      </div>
+      <div class="threshold-controls">
+        <label>
+          AI Probability Threshold: <span id="ai-threshold-value">0.75</span>
+          <input type="range" id="ai-threshold" min="0.3" max="0.9" step="0.05" value="0.75">
+        </label>
+        <label>
+          LLM Score Threshold: <span id="llm-threshold-value">0.65</span>
+          <input type="range" id="llm-threshold" min="0.3" max="0.9" step="0.05" value="0.65">
+        </label>
+      </div>
+    </section>
+
     <section class="pane config">
       <h2>Threat Intel API Keys</h2>
       <form id="api-form">

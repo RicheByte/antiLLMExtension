@@ -8,7 +8,7 @@ const BADGE_SETTINGS = {
 const CACHE_TTL = 60 * 60 * 1000;
 const tabAssessments = new Map();
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   await chrome.action.setBadgeText({ text: "" });
   await chrome.action.setBadgeBackgroundColor({ color: BADGE_SETTINGS.none.color });
   
@@ -19,6 +19,34 @@ chrome.runtime.onInstalled.addListener(async () => {
   
   // Trigger initial signature check
   updateThreatSignatures();
+
+  // Migration: Update settings to stricter defaults if coming from older version
+  if (details.reason === 'update' || details.reason === 'install') {
+    const { settings } = await chrome.storage.local.get('settings');
+    if (settings) {
+      // Check if using old loose thresholds and upgrade them
+      let updated = false;
+      const newDefaults = getDefaultSettings();
+      
+      if ((settings.aiProbabilityThreshold || 0) < 0.7) {
+        settings.aiProbabilityThreshold = newDefaults.aiProbabilityThreshold;
+        updated = true;
+      }
+      if ((settings.llmScoreThreshold || 0) < 0.6) {
+        settings.llmScoreThreshold = newDefaults.llmScoreThreshold;
+        updated = true;
+      }
+      if ((settings.minTextLength || 0) < 120) {
+        settings.minTextLength = newDefaults.minTextLength;
+        updated = true;
+      }
+      
+      if (updated) {
+        await chrome.storage.local.set({ settings });
+        console.log("[AntiLLM] Migrated settings to stricter thresholds");
+      }
+    }
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -45,6 +73,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     case "GET_SIGNATURES":
       getSignatures().then(sendResponse);
+      return true;
+    case "ADD_TO_READ_LLM":
+      addToReadLLMQueue(message.item).then(sendResponse);
+      return true;
+    case "BLOCK_ITEM":
+      blockItem(message.item).then(sendResponse);
+      return true;
+    case "UNBLOCK_ITEM":
+      unblockItem(message.itemId).then(sendResponse);
+      return true;
+    case "GET_BLOCKED_ITEMS":
+      getBlockedItems().then(sendResponse);
+      return true;
+    case "GET_READ_LLM_QUEUE":
+      getReadLLMQueue().then(sendResponse);
+      return true;
+    case "REMOVE_FROM_READ_LLM":
+      removeFromReadLLM(message.itemId).then(sendResponse);
+      return true;
+    case "GET_SETTINGS":
+      getSettings().then(sendResponse);
+      return true;
+    case "UPDATE_SETTINGS":
+      updateSettings(message.settings).then(sendResponse);
       return true;
     default:
       break;
@@ -277,9 +329,18 @@ function levenshtein(a, b) {
 
 // Challenge 4: Auto-updateable threat signatures
 async function updateThreatSignatures() {
+  // Disable remote updates to prevent 404 errors until the repository is public/pushed
+  const REMOTE_UPDATES_ENABLED = false;
+
+  if (!REMOTE_UPDATES_ENABLED) {
+    // console.log("[AntiLLM] Remote signature updates disabled.");
+    return;
+  }
+
   try {
     console.log("[AntiLLM] Checking for signature updates...");
-    const signatureUrl = "https://raw.githubusercontent.com/yourusername/antillm/main/signatures/threat-signatures.json";
+    // Updated to point to the correct repository
+    const signatureUrl = "https://raw.githubusercontent.com/RicheByte/antiLLMExtension/main/signatures/threat-signatures.json";
     
     const response = await fetch(signatureUrl, {
       cache: 'no-cache',
@@ -347,5 +408,150 @@ async function handleFeedback(feedback) {
     console.error("[AntiLLM] Feedback error:", error);
     return { success: false, error: error.message };
   }
+}
+
+// Blocker and Read LLM Queue Management
+const MAX_QUEUE_SIZE = 100;
+const MAX_BLOCKED_ITEMS = 200;
+
+async function addToReadLLMQueue(item) {
+  try {
+    const { readLLMQueue = [] } = await chrome.storage.local.get('readLLMQueue');
+    
+    // Check for duplicates by ID
+    if (readLLMQueue.some(existing => existing.id === item.id)) {
+      return { success: false, error: 'Item already in queue' };
+    }
+    
+    // Add to queue
+    readLLMQueue.push({
+      ...item,
+      status: 'queued',
+      addedAt: Date.now()
+    });
+    
+    // Limit queue size (keep most recent)
+    const trimmed = readLLMQueue.slice(-MAX_QUEUE_SIZE);
+    await chrome.storage.local.set({ readLLMQueue: trimmed });
+    
+    console.log("[AntiLLM] Added to Read LLM queue:", item.id);
+    return { success: true, queueSize: trimmed.length };
+  } catch (error) {
+    console.error("[AntiLLM] Add to Read LLM error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getReadLLMQueue() {
+  try {
+    const { readLLMQueue = [] } = await chrome.storage.local.get('readLLMQueue');
+    return { success: true, queue: readLLMQueue };
+  } catch (error) {
+    console.error("[AntiLLM] Get Read LLM queue error:", error);
+    return { success: false, error: error.message, queue: [] };
+  }
+}
+
+async function removeFromReadLLM(itemId) {
+  try {
+    const { readLLMQueue = [] } = await chrome.storage.local.get('readLLMQueue');
+    const filtered = readLLMQueue.filter(item => item.id !== itemId);
+    await chrome.storage.local.set({ readLLMQueue: filtered });
+    
+    console.log("[AntiLLM] Removed from Read LLM queue:", itemId);
+    return { success: true, queueSize: filtered.length };
+  } catch (error) {
+    console.error("[AntiLLM] Remove from Read LLM error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function blockItem(item) {
+  try {
+    const { blockedItems = [] } = await chrome.storage.local.get('blockedItems');
+    
+    // Check for duplicates by ID
+    if (blockedItems.some(existing => existing.id === item.id)) {
+      return { success: false, error: 'Item already blocked' };
+    }
+    
+    // Add to blocked items
+    blockedItems.push({
+      ...item,
+      blockedAt: Date.now()
+    });
+    
+    // Limit storage (keep most recent)
+    const trimmed = blockedItems.slice(-MAX_BLOCKED_ITEMS);
+    await chrome.storage.local.set({ blockedItems: trimmed });
+    
+    console.log("[AntiLLM] Item blocked:", item.id);
+    return { success: true, blockedCount: trimmed.length };
+  } catch (error) {
+    console.error("[AntiLLM] Block item error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function unblockItem(itemId) {
+  try {
+    const { blockedItems = [] } = await chrome.storage.local.get('blockedItems');
+    const filtered = blockedItems.filter(item => item.id !== itemId);
+    await chrome.storage.local.set({ blockedItems: filtered });
+    
+    console.log("[AntiLLM] Item unblocked:", itemId);
+    return { success: true, blockedCount: filtered.length };
+  } catch (error) {
+    console.error("[AntiLLM] Unblock item error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function getBlockedItems() {
+  try {
+    const { blockedItems = [] } = await chrome.storage.local.get('blockedItems');
+    return { success: true, blockedItems };
+  } catch (error) {
+    console.error("[AntiLLM] Get blocked items error:", error);
+    return { success: false, error: error.message, blockedItems: [] };
+  }
+}
+
+async function getSettings() {
+  try {
+    const { settings = getDefaultSettings() } = await chrome.storage.local.get('settings');
+    return { success: true, settings };
+  } catch (error) {
+    console.error("[AntiLLM] Get settings error:", error);
+    return { success: false, error: error.message, settings: getDefaultSettings() };
+  }
+}
+
+async function updateSettings(newSettings) {
+  try {
+    const { settings = getDefaultSettings() } = await chrome.storage.local.get('settings');
+    const merged = { ...settings, ...newSettings };
+    await chrome.storage.local.set({ settings: merged });
+    
+    console.log("[AntiLLM] Settings updated");
+    return { success: true, settings: merged };
+  } catch (error) {
+    console.error("[AntiLLM] Update settings error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+function getDefaultSettings() {
+  return {
+    blockersEnabled: true,
+    aiProbabilityThreshold: 0.75,
+    aiConfidenceThreshold: 0.65,
+    llmScoreThreshold: 0.65,
+    urgencyScoreThreshold: 0.7,
+    minTextLength: 150,
+    maxElementsPerScan: 20,
+    autoBlock: false,
+    whitelistedDomains: []
+  };
 }
 
